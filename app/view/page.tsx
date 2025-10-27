@@ -1,25 +1,47 @@
 // app/view/page.tsx
-export default function ViewPage({
+export default async function ViewPage({
   searchParams,
 }: {
-  searchParams?: { url1?: string; url2?: string };
+  searchParams?: Promise<{ url1?: string; url2?: string; title1?: string; title2?: string }>;
 }) {
-  const url1 = searchParams?.url1 || '';
-  const url2 = searchParams?.url2 || '';
-  const urls = [url1, url2].filter(Boolean);
+  // Await the Promise to get the actual params
+  const params = await searchParams;
+  
+  const raw1 = params?.url1 || '';
+  const raw2 = params?.url2 || '';
+  
+  // Decode the URLs (they were encoded in the upload page)
+  const url1 = raw1 ? decodeURIComponent(raw1) : '';
+  const url2 = raw2 ? decodeURIComponent(raw2) : '';
+  const title1 = params?.title1 || 'Chart 1';
+  const title2 = params?.title2 || 'Chart 2';
+
+  const charts = [
+    url1 ? { url: url1, title: title1 } : null,
+    url2 ? { url: url2, title: title2 } : null,
+  ].filter(Boolean) as { url: string; title: string }[];
+
+  // Optional: use your image proxy
+  const useProxy = true;
+  const chartsToRender = useProxy
+    ? charts.map((c) => ({
+        url: `/api/image-proxy?url=${encodeURIComponent(c.url)}`,
+        title: c.title,
+      }))
+    : charts;
 
   return (
     <main style={{ minHeight: '100vh', padding: 24, background: '#fff', color: '#000' }}>
       <h1>Charts Viewer</h1>
-      {urls.length === 0 ? (
+      {chartsToRender.length === 0 ? (
         <p>No chart URLs provided. Go back and submit again.</p>
       ) : (
         <div style={{ display: 'grid', gap: 16 }}>
-          {urls.map((u, i) => (
+          {chartsToRender.map((c, i) => (
             <figure key={i} style={{ margin: 0 }}>
               <img
-                src={u}
-                alt={`Chart ${i + 1}`}
+                src={c.url}
+                alt={c.title}
                 style={{
                   maxWidth: '100%',
                   height: 'auto',
@@ -29,7 +51,7 @@ export default function ViewPage({
                 }}
               />
               <figcaption style={{ fontSize: 14, color: '#555', wordBreak: 'break-all' }}>
-                {u}
+                {c.title}
               </figcaption>
             </figure>
           ))}
