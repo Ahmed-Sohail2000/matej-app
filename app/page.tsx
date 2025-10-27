@@ -44,45 +44,51 @@ export default function Page() {
     try {
       const res = await fetch(webhookUrl as string, {
         method: 'POST',
-        body: formData,
+        body: formData, // Do NOT set Content-Type manually for FormData
       });
 
       const contentType = res.headers.get('content-type') || '';
-
       if (!res.ok) {
-        const txt = await res.text();
+        const txt = await res.text().catch(() => '');
         throw new Error(`HTTP ${res.status}: ${txt || 'No response body'}`);
       }
 
+      let data: any = null;
       if (contentType.includes('application/json')) {
-        const data = await res.json();
-        setMessage(data?.message ?? 'Success');
-
-        const list = Array.isArray(data?.charts) ? data.charts : [];
-        setCharts(list);
-
-        // Build query with up to two charts including titles
-        const c1 = list?.[0] || {};
-        const c2 = list?.[1] || {};
-
-        const search = new URLSearchParams();
-        if (c1?.url) {
-          search.set('url1', encodeURIComponent(c1.url));
-          if (c1?.title) search.set('title1', c1.title);
+        const text = await res.text(); // safer: read as text first
+        if (!text) throw new Error('Empty JSON response');
+        try {
+          data = JSON.parse(text);
+        } catch {
+          throw new Error('Invalid JSON response');
         }
-        if (c2?.url) {
-          search.set('url2', encodeURIComponent(c2.url));
-          if (c2?.title) search.set('title2', c2.title);
-        }
-
-        router.push(`/view?${search.toString()}`);
-
-        // Navigate to /view with query params
-        router.push(`/view?${search.toString()}`);
       } else {
-        const text = await res.text();
-        setMessage(text || 'Submitted successfully (non-JSON response)');
+        const txt = await res.text();
+        setMessage(txt || 'Submitted successfully (non-JSON response)');
+        return; // Nothing to navigate to if not JSON
       }
+
+      console.log('n8n response:', data);
+
+      setMessage(data?.message ?? 'Success');
+      const list = Array.isArray(data?.charts) ? data.charts : [];
+      setCharts(list);
+
+      // Build query with up to two charts including titles
+      const c1 = list?.[0] || {};
+      const c2 = list?.[1] || {};
+      const search = new URLSearchParams();
+      if (c1?.url) {
+        search.set('url1', encodeURIComponent(c1.url));
+        if (c1?.title) search.set('title1', c1.title);
+      }
+      if (c2?.url) {
+        search.set('url2', encodeURIComponent(c2.url));
+        if (c2?.title) search.set('title2', c2.title);
+      }
+
+      // Navigate ONCE
+      router.push(`/view?${search.toString()}`);
     } catch (err: any) {
       setError(err?.message || 'Failed to fetch (network/CORS/URL issue)');
     } finally {
@@ -91,19 +97,10 @@ export default function Page() {
   }
 
   return (
-    <main
-      style={{
-        background: '#ffffff',
-        color: '#000000',
-        minHeight: '100vh',
-        padding: '40px 20px',
-      }}
-    >
+    <main style={{ background: '#ffffff', color: '#000000', minHeight: '100vh', padding: '40px 20px' }}>
       <div style={{ maxWidth: 860, margin: '0 auto' }}>
         <h1 style={{ marginBottom: 8 }}>Upload & Generate Charts</h1>
-        <p style={{ marginBottom: 24 }}>
-          Upload a file and we’ll generate charts via n8n + QuickChart.
-        </p>
+        <p style={{ marginBottom: 24 }}>Upload a file and we’ll generate charts via n8n + QuickChart.</p>
 
         {!webhookUrl && (
           <div
@@ -119,17 +116,7 @@ export default function Page() {
           </div>
         )}
 
-        <form
-          onSubmit={handleSubmit}
-          encType="multipart/form-data"
-          style={{
-            background: '#000000',
-            color: '#ffffff',
-            borderRadius: 12,
-            padding: 20,
-            boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
-          }}
-        >
+        <form onSubmit={handleSubmit} encType="multipart/form-data" style={{ background: '#000', color: '#fff', borderRadius: 12, padding: 20, boxShadow: '0 8px 24px rgba(0,0,0,0.2)' }}>
           <div style={{ display: 'grid', gap: 12, marginBottom: 16 }}>
             <label style={{ display: 'grid', gap: 6 }}>
               <span>Name</span>
@@ -155,6 +142,7 @@ export default function Page() {
               accept=".csv,.xlsx,.json"
               onChange={handleFileChange}
               style={{ display: 'none' }}
+              required
             />
 
             {/* Visible button to pick a file */}
@@ -163,8 +151,8 @@ export default function Page() {
                 type="button"
                 onClick={triggerFilePicker}
                 style={{
-                  background: '#ffffff',
-                  color: '#000000',
+                  background: '#fff',
+                  color: '#000',
                   border: '1px solid #000',
                   borderRadius: 8,
                   padding: '10px 16px',
@@ -175,9 +163,7 @@ export default function Page() {
               >
                 Choose File
               </button>
-              <span style={{ color: '#ccc', fontSize: 14 }}>
-                {selectedFileName || 'No file selected'}
-              </span>
+              <span style={{ color: '#ccc', fontSize: 14 }}>{selectedFileName || 'No file selected'}</span>
             </div>
 
             <label style={{ display: 'grid', gap: 6 }}>
@@ -202,8 +188,8 @@ export default function Page() {
             type="submit"
             disabled={loading || !webhookUrl}
             style={{
-              background: '#ffffff',
-              color: '#000000',
+              background: '#fff',
+              color: '#000',
               border: '1px solid #000',
               borderRadius: 8,
               padding: '10px 16px',
@@ -216,45 +202,9 @@ export default function Page() {
           </button>
         </form>
 
-        {error && (
-          <div style={{ marginTop: 16, color: '#b00020' }}>
-            Error: {error}
-          </div>
-        )}
+        {error && <div style={{ marginTop: 16, color: '#b00020' }}>Error: {error}</div>}
 
-        {message && (
-          <div style={{ marginTop: 16, color: '#000' }}>
-            {message}
-          </div>
-        )}
-
-        {charts?.length > 0 && (
-          <section style={{ marginTop: 24 }}>
-            <h2 style={{ color: '#000' }}>Charts</h2>
-            <div style={{ display: 'grid', gap: 16 }}>
-              {charts.map((c, i) => (
-                <figure key={i} style={{ margin: 0 }}>
-                  <img
-                    src={c.url}
-                    alt={c.title || `Chart ${i + 1}`}
-                    style={{
-                      maxWidth: '100%',
-                      height: 'auto',
-                      borderRadius: 8,
-                      border: '1px solid #eee',
-                      background: '#fff',
-                    }}
-                  />
-                  {(c.title || c.url) && (
-                    <figcaption style={{ fontSize: 14, color: '#555' }}>
-                      {c.title || c.url}
-                    </figcaption>
-                  )}
-                </figure>
-              ))}
-            </div>
-          </section>
-        )}
+        {message && <div style={{ marginTop: 16, color: '#000' }}>{message}</div>}
       </div>
     </main>
   );
