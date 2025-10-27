@@ -1,3 +1,4 @@
+// app/view/page.tsx
 export default function ViewPage({
   searchParams,
 }: {
@@ -10,20 +11,21 @@ export default function ViewPage({
   const title1 = searchParams?.title1 || 'Chart 1';
   const title2 = searchParams?.title2 || 'Chart 2';
 
-  // Build the charts array first
+  // Build charts from decoded query params
   const charts = [
     url1 ? { url: url1, title: title1 } : null,
     url2 ? { url: url2, title: title2 } : null,
   ].filter(Boolean) as { url: string; title: string }[];
 
-  // If you implemented the /api/image-proxy route, route through it
-  const proxiedCharts = charts.map((c) => ({
-    url: `/api/image-proxy?url=${encodeURIComponent(c.url)}`,
-    title: c.title,
-  }));
-
-  // Choose which to render: proxied or direct
-  const listToRender = proxiedCharts.length ? proxiedCharts : charts;
+  // If you created app/api/image-proxy/route.ts, use it here.
+  // Otherwise, render charts directly.
+  const useProxy = true; // set to false to render direct URLs
+  const listToRender = useProxy
+    ? charts.map((c) => ({
+        url: `/api/image-proxy?url=${encodeURIComponent(c.url)}`,
+        title: c.title,
+      }))
+    : charts;
 
   return (
     <main style={{ minHeight: '100vh', padding: 24, background: '#fff', color: '#000' }}>
