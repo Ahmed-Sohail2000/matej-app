@@ -44,7 +44,7 @@ export default function Page() {
     try {
       const res = await fetch(webhookUrl as string, {
         method: 'POST',
-        body: formData,
+        body: formData, // Do NOT set Content-Type header manually for FormData
       });
 
       const contentType = res.headers.get('content-type') || '';
@@ -56,16 +56,28 @@ export default function Page() {
 
       if (contentType.includes('application/json')) {
         const data = await res.json();
+        console.log('n8n response:', data); // Debug: verify charts array
+        
         setMessage(data?.message ?? 'Success');
         const list = Array.isArray(data?.charts) ? data.charts : [];
         setCharts(list);
 
-        // Navigate to /view with up to two chart URLs in the query
+        // ✅ FIXED: Encode URLs so query strings inside chart URLs don't break navigation
         const url1 = list?.[0]?.url || '';
         const url2 = list?.[1]?.url || '';
+        const title1 = list?.[0]?.title || '';
+        const title2 = list?.[1]?.title || '';
+
         const search = new URLSearchParams();
-        if (url1) search.set('url1', url1);
-        if (url2) search.set('url2', url2);
+        if (url1) {
+          search.set('url1', encodeURIComponent(url1)); // Encode the entire URL
+          if (title1) search.set('title1', title1);
+        }
+        if (url2) {
+          search.set('url2', encodeURIComponent(url2)); // Encode the entire URL
+          if (title2) search.set('title2', title2);
+        }
+
         router.push(`/view?${search.toString()}`);
       } else {
         const text = await res.text();
@@ -90,7 +102,7 @@ export default function Page() {
       <div style={{ maxWidth: 860, margin: '0 auto' }}>
         <h1 style={{ marginBottom: 8 }}>Upload & Generate Charts</h1>
         <p style={{ marginBottom: 24 }}>
-          Upload a file and we’ll generate charts via n8n + QuickChart.
+          Upload a file and we'll generate charts via n8n + QuickChart.
         </p>
 
         {!webhookUrl && (
